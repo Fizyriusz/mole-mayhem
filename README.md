@@ -93,13 +93,14 @@ zabijane zaraz po odpowiedzi) — front i serwer sesji to zawsze dwa osobne miej
 Vercel (albo dowolny static hosting)     ← dist/, sama gra
         │  WebSocket
         ▼
-PartyKit — party/session.js              ← relay pokoi, ~130 linii, bez logiki gry
-        (lokalnie na 1999, albo partykit deploy)
+Cloudflare Worker — worker/index.js      ← relay pokoi, ~180 linii, bez logiki gry
+        (lokalnie na 1999, albo *.workers.dev)
 ```
 
-- [`party/session.js`](party/session.js) — serwer pokoju: roster graczy, przekazuje `claim`
+- [`worker/index.js`](worker/index.js) — serwer pokoju: roster graczy, przekazuje `claim`
   (wybór frakcji), `start` (host → wszyscy), `cmd` (gość → **tylko host**), `snapshot`/`event`
   (host → wszyscy oprócz hosta). Format wiadomości opisany w nagłówku pliku.
+  Jeden **Durable Object** = jeden pokój, adresowany kodem z URL-a.
 - [`src/net/client.js`](src/net/client.js) — `NetClient`, cienki klient WebSocket po stronie gry.
 - [`src/core/netsync.js`](src/core/netsync.js) — `serializeSnapshot()`/`applySnapshot()`. Filozofia:
   snapshot jest źródłem prawdy dla liczb HUD; FX/dźwięki dla cudzych postaci są **wywnioskowane**
@@ -114,42 +115,41 @@ Host liczy WSZYSTKO tak jak w solo (włącznie z botami na wolnych slotach); go�
 lokalną predykcję WYŁĄCZNIE dla własnej postaci (responsywne sterowanie), a wszystkich innych
 aktorów renderuje jako marionetki napędzane snapshotem.
 
-### Uruchomienie lokalne (dokładnie ten sposób, co znasz z innych projektów)
+### Uruchomienie lokalne
 
 ```bash
-npm run party:dev      # PartyKit lokalnie, port 1999
-npm run tunnel         # localtunnel --port 1999 --subdomain mole-mayhem-fizii
+npm run relay:dev      # serwer sesji lokalnie, port 1999 (wrangler dev)
 npm run dev            # sama gra, port 5175
 ```
 
-W grze, w zakładce **Wieloosobowa**, pole *Adres serwera* przyjmuje:
-- `localhost:1999` — gdy grasz z kimś w tej samej sieci (albo testujesz sam w dwóch kartach),
-- adres z `npm run tunnel` (np. `mole-mayhem-fizii.loca.lt`) — gdy znajomy łączy się z internetu.
+albo jednym kliknięciem: `start-servers.cmd` (otwiera oba w osobnych oknach).
 
-Host klika **Stwórz sesję** → dostaje 4-znakowy kod → przekazuje go znajomym. Oni wpisują ten sam
-adres serwera + kod i klikają **Dołącz**. Frakcję każdy wybiera na zakładce „Graj” (widać ją od razu
-w poczekalni); host klika **START MECZU**, gdy skład go satysfakcjonuje. Wolne sloty (bez
-podłączonego gracza) zawsze dostają bota — dokładnie ten sam mechanizm co w grze solo.
+W grze, w zakładce **Wieloosobowa**, pole *Adres serwera* wypełnia się samo adresem hosta,
+z którego załadowano stronę + `:1999` — więc przy grze przez LAN/Tailscale nie trzeba nic
+wpisywać. Host klika **Stwórz sesję** → dostaje 4-znakowy kod → przekazuje go znajomym. Oni
+wpisują ten sam adres serwera + kod i klikają **Dołącz**. Frakcję każdy wybiera na zakładce
+„Graj” (widać ją od razu w poczekalni); host klika **START MECZU**, gdy skład go satysfakcjonuje.
+Wolne sloty (bez podłączonego gracza) zawsze dostają bota — ten sam mechanizm co w grze solo.
 
-Pole adresu serwera jest zapamiętywane w przeglądarce (`localStorage`), więc nie trzeba go wpisywać
-za każdym razem — i nie wymaga przebudowy/redeployu frontendu, gdy zmieni się URL tunelu.
+Pole adresu serwera jest zapamiętywane w przeglądarce (`localStorage`), więc da się podmienić
+relay bez przebudowy frontendu.
 
-### Wdrożenie (Vercel + PartyKit)
+### Wdrożenie (Vercel + Cloudflare Workers)
 
 > **Najważniejsze ograniczenie:** strona na Vercelu chodzi po HTTPS, a przeglądarka **blokuje**
 > stronie HTTPS otwieranie połączeń `ws://` (mixed content). Po wdrożeniu na Vercel relay na
-> localhoście / LAN / Tailscale **przestaje działać** — musi mieć TLS. Dlatego `party:deploy`
-> (albo tunel po HTTPS) jest wymagany, a nie opcjonalny. Gra wykrywa ten przypadek i pokazuje
-> konkretny komunikat zamiast generycznego timeoutu.
+> localhoście / LAN / Tailscale **przestaje działać** — musi mieć TLS. Gra wykrywa ten przypadek
+> i pokazuje konkretny komunikat zamiast generycznego timeoutu.
 
-**Krok 1 — relay na PartyKit** (musi być pierwszy, bo jego adres jest potrzebny do builda):
+**Krok 1 — relay na Cloudflare** (musi być pierwszy, bo jego adres jest potrzebny do builda):
 
 ```bash
-npm run party:deploy      # logowanie przez GitHub przy pierwszym uruchomieniu
+npm run relay:login     # jednorazowo: otwiera przeglądarkę, autoryzacja konta
+npm run relay:deploy
 ```
 
-Wypisze adres w formacie `mole-mayhem.<twój-login>.partykit.dev`. Nazwa `mole-mayhem` pochodzi
-z pola `name` w [`partykit.json`](partykit.json).
+Wypisze adres w formacie `mole-mayhem-relay.<twój-subdomain>.workers.dev`. Człon
+`mole-mayhem-relay` pochodzi z pola `name` w [`wrangler.toml`](wrangler.toml).
 
 **Krok 2 — frontend na Vercel:** *Add New → Project* → import repo z GitHuba. Vercel wykryje Vite
 sam, a [`vercel.json`](vercel.json) i tak ustawia to jawnie (`npm run build` → `dist/`). Przed
@@ -157,7 +157,7 @@ pierwszym deployem dodaj zmienną środowiskową:
 
 | Klucz | Wartość |
 |---|---|
-| `VITE_PARTYKIT_HOST` | `mole-mayhem.<twój-login>.partykit.dev` |
+| `VITE_PARTYKIT_HOST` | `mole-mayhem-relay.<twój-subdomain>.workers.dev` |
 
 **Vite podstawia zmienne `VITE_*` w momencie budowania, nie w przeglądarce** — jeśli dodasz ją
 po deployu, trzeba zrobić *Redeploy*, żeby zadziałała. Bez niej gra na HTTPS zostawia pole
@@ -167,9 +167,27 @@ po deployu, trzeba zrobić *Redeploy*, żeby zadziałała. Bez niej gra na HTTPS
 Kolejność źródeł adresu: **wpis gracza w polu (localStorage) → `VITE_PARTYKIT_HOST` → auto-wykrycie
 z adresu strony**. Ręczny wpis zawsze wygrywa, więc da się podmienić relay bez redeployu.
 
-**Alternatywa bez Vercela:** zostaw grę lokalnie (`npm run dev`) i wystaw ją przez Tailscale albo
-`npm run tunnel`. Wtedy wszystko chodzi po HTTP i relay na `localhost:1999` działa bez przeszkód —
-kosztem tego, że Twój komputer musi być włączony.
+#### Dlaczego nie PartyKit
+
+Projekt startował na PartyKit i `party/session.js` działał bez zarzutu, ale `partykit deploy`
+publikuje na **współdzielonej** domenie `partykit.dev`, która uderzyła w twardy limit Cloudflare
+(10 000 custom domains na strefę) — błąd globalny, niezależny od nas i nie do obejścia po stronie
+kodu. Ponieważ PartyKit i tak stoi pod spodem na Durable Objects, relay przeniesiono na czystego
+Workera na **własnym koncie**: ta sama technologia, własna strefa, limit znika.
+
+Sprawdzana była też droga na skróty — `partykit dev` + tunel (localtunnel). **Nie działa**: darmowy
+localtunnel wykłada się na kilku równoległych, trwałych połączeniach WebSocket. Zmierzone —
+3 próby po 2 jednoczesne połączenia: w dwóch padły oba, w jednej jedno z dwóch; pojedyncze
+połączenie wchodziło dopiero po ~5 s. Dla gry, gdzie każdy gracz trzyma otwarty socket, to
+dyskwalifikacja.
+
+**Koszt:** Durable Objects mieszczą się w darmowym planie Workers (100 tys. zapytań/dobę,
+13 000 GB-s/dobę). Dlatego w [`wrangler.toml`](wrangler.toml) migracja używa
+`new_sqlite_classes`, a nie `new_classes` — darmowy plan udostępnia wyłącznie backend SQLite.
+
+**Alternatywa bez Vercela:** zostaw grę lokalnie (`npm run dev`) i wejdźcie przez Tailscale.
+Wtedy wszystko chodzi po HTTP i relay na `localhost:1999` działa bez przeszkód — kosztem tego,
+że Twój komputer musi być włączony.
 
 ### Znane uproszczenia V1
 
@@ -220,12 +238,13 @@ kosztem tego, że Twój komputer musi być włączony.
 ## Architektura
 
 ```
-party/session.js      serwer sesji PartyKit — relay pokoi, bez logiki gry
+worker/index.js       serwer sesji (Cloudflare Worker + Durable Object) — relay, bez logiki gry
+wrangler.toml         konfiguracja relaya (port 1999 lokalnie, deploy na workers.dev)
 src/
   main.js              pętla renderowania + adaptacyjny pixelRatio
   core/                config (balans), game (rdzeń + netRole host/guest), netsync (snapshoty),
                        camera, input, collision, audio, dispose
-  net/                 client.js — NetClient (WebSocket do party/session.js)
+  net/                 client.js — NetClient (WebSocket do worker/index.js)
   world/               arena, vegetables, mounds, burrows, textures (proceduralne CanvasTexture)
   entities/            actor (baza + tryb sieciowy), mole, defender (Gardener + Dog), traps, models
   fx/                  postfx, particles, ripples, scent

@@ -26,6 +26,7 @@ import { serializeSnapshot, applySnapshot } from './netsync.js';
 import * as Eco from '../meta/economy.js';
 
 const SNAPSHOT_HZ = 20;
+const REMOTE_CMD_TTL = 0.5;   // po tylu sekundach cisz od gracza jego postac staje
 
 const MOLE_NAMES = ['Ryjek', 'Bolek', 'Lolek', 'Krecik', 'Sztygar', 'Wąsik'];
 const DOG_NAMES = ['Burek', 'Reksio', 'Azor', 'Fafik'];
@@ -151,7 +152,7 @@ export class Game {
   attachNet(client) {
     this.net = client;
     client.onCmd(msg => {
-      if (this.netRole === 'host') this.remoteCommands.set(msg.from, msg.cmd);
+      if (this.netRole === 'host') this.remoteCommands.set(msg.from, { cmd: msg.cmd, at: this.time });
     });
     client.onSnapshot(msg => {
       if (this.netRole === 'guest') applySnapshot(this, msg);
@@ -665,7 +666,14 @@ export class Game {
       let cmd = EMPTY_COMMAND;
       if (playing) {
         if (a.isLocal) cmd = this.input.buildCommand(this.camera, a);
-        else if (a.netId) cmd = this.remoteCommands.get(a.netId) || EMPTY_COMMAND;
+        else if (a.netId) {
+          // Komenda wygasa: bez tego postac gracza, ktoremu zamarzla karta,
+          // biegla by w nieskonczonosc ostatnim otrzymanym kierunkiem. Na telefonie
+          // to pewniak — przelaczenie aplikacji dlawi requestAnimationFrame,
+          // wiec komendy po prostu przestaja przychodzic.
+          const rc = this.remoteCommands.get(a.netId);
+          cmd = rc && this.time - rc.at < REMOTE_CMD_TTL ? rc.cmd : EMPTY_COMMAND;
+        }
         else {
           const brain = this.brains.get(a.id);
           cmd = brain ? brain.think(dt) : EMPTY_COMMAND;

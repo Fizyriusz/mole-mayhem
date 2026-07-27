@@ -1,0 +1,31 @@
+# Serwer sesji Mole Mayhem na Cloudflare Workers.
+#
+#   npm run relay:dev      -> lokalnie na porcie 1999 (jak wczesniej partykit dev)
+#   npm run relay:deploy   -> publikacja na <name>.<twoj-subdomain>.workers.dev
+#
+# Nazwa nizej staje sie czescia adresu, wiec zmiana `name` = zmiana URL-a relaya.
+
+name = "mole-mayhem-relay"
+main = "worker/index.js"
+compatibility_date = "2025-06-01"
+
+[[durable_objects.bindings]]
+name = "GAME_ROOM"
+class_name = "GameRoom"
+
+# UWAGA: `new_sqlite_classes`, a NIE `new_classes`.
+# Darmowy plan Workers udostepnia Durable Objects wylacznie z backendem SQLite —
+# przy `new_classes` deploy odbije sie bledem o wymaganym planie platnym.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["GameRoom"]
+
+[dev]
+port = 1999
+# Domyslnie wrangler slucha tylko na 127.0.0.1, czyli relay bylby niewidoczny
+# dla telefonu w LAN-ie i przez Tailscale. 0.0.0.0 przywraca zachowanie,
+# ktore mielismy wczesniej.
+ip = "0.0.0.0"
+
+[observability]
+enabled = true

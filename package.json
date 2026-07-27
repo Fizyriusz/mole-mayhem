@@ -8,16 +8,15 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview --port 4173 --host",
-    "party:dev": "partykit dev",
-    "party:deploy": "partykit deploy",
-    "tunnel": "localtunnel --port 1999 --subdomain mole-mayhem-fizii"
+    "relay:dev": "wrangler dev",
+    "relay:deploy": "wrangler deploy",
+    "relay:login": "wrangler login"
   },
   "dependencies": {
     "three": "^0.182.0"
   },
   "devDependencies": {
-    "localtunnel": "^2.0.2",
-    "partykit": "^0.0.115",
-    "vite": "^7.1.0"
+    "vite": "^7.1.0",
+    "wrangler": "^4.114.0"
   }
 }
