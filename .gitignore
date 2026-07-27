@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.vite/
+.shots/
+*.log
+.DS_Store
+
+# lokalny stan `partykit dev` (SQLite Durable Objects) — artefakt runtime'u
+.partykit/
+
+# ustawienia Claude Code per-maszyna (launch.json zostaje, bo jest wspolny dla projektu)
+.claude/settings.local.json

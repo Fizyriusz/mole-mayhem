@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="pl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#1b2a17" />
+  <title>Mole Mayhem 3D</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🐹</text></svg>" />
+  <link rel="stylesheet" href="./src/ui/style.css" />
+</head>
+<body>
+  <div id="app">
+    <canvas id="scene"></canvas>
+
+    <!-- ======================= HUD (w trakcie meczu) ======================= -->
+    <div id="hud" class="layer hidden">
+      <div class="hud-top">
+        <div class="team-score team-mole">
+          <span class="ts-icon">🥕</span>
+          <span id="hud-veg" class="ts-value">0/6</span>
+          <span class="ts-label">skradzione</span>
+        </div>
+        <div class="timer-wrap">
+          <div id="hud-timer" class="timer">3:30</div>
+          <div id="hud-phase" class="phase">Runda trwa</div>
+        </div>
+        <div class="team-score team-def">
+          <span class="ts-icon">🐾</span>
+          <span id="hud-moles" class="ts-value">3/3</span>
+          <span class="ts-label">krety w grze</span>
+        </div>
+      </div>
+
+      <div id="hud-roster" class="roster"></div>
+
+      <div id="hud-banner" class="banner hidden"></div>
+
+      <div id="hud-cast" class="cast hidden">
+        <div class="cast-label">Wykopywanie…</div>
+        <div class="cast-bar"><i></i></div>
+      </div>
+
+      <div class="hud-bottom">
+        <div class="vitals">
+          <div class="bar hp"><i id="bar-hp"></i><span>HP</span></div>
+          <div class="bar st"><i id="bar-st"></i><span>STAMINA</span></div>
+          <div id="carry" class="carry hidden">🥕 <b id="carry-count">0</b></div>
+        </div>
+        <div id="abilities" class="abilities"></div>
+      </div>
+
+      <div id="touch-left" class="stick hidden"><i></i></div>
+      <div id="hud-hint" class="hint"></div>
+      <div id="rotate-hint" class="rotate-hint">🔄 Obróć telefon poziomo — zobaczysz więcej ogrodu</div>
+    </div>
+
+    <!-- ======================= MENU / LOBBY ======================= -->
+    <div id="menu" class="layer">
+      <div class="menu-bg"></div>
+
+      <header class="brand">
+        <h1>MOLE&nbsp;MAYHEM <em>3D</em></h1>
+        <p>Krety kradną warzywa. Obrońcy bronią grządek. 3 minuty chaosu.</p>
+      </header>
+
+      <div class="wallet">
+        <span class="coin silver">🪙 <b id="w-silver">0</b></span>
+        <span class="coin gold">🌰 <b id="w-gold">0</b></span>
+      </div>
+
+      <nav class="tabs">
+        <button class="tab active" data-tab="play">Graj</button>
+        <button class="tab" data-tab="mp">Wieloosobowa</button>
+        <button class="tab" data-tab="loadout">Loadout</button>
+        <button class="tab" data-tab="shop">Sklep</button>
+        <button class="tab" data-tab="help">Sterowanie</button>
+      </nav>
+
+      <section class="panel active" data-panel="play">
+        <h2>Wybierz frakcję</h2>
+        <div class="faction-grid">
+          <button class="faction sel" data-class="mole">
+            <span class="fa-emoji">🐭</span>
+            <b>Kret</b>
+            <small>Sabotażysta · kop tunele, kradnij, uciekaj</small>
+          </button>
+          <button class="faction" data-class="gardener">
+            <span class="fa-emoji">🧑‍🌾</span>
+            <b>Ogrodnik</b>
+            <small>Obrońca · młotek, wąż z wodą, pułapka dźwiękowa</small>
+          </button>
+          <button class="faction" data-class="dog">
+            <span class="fa-emoji">🐕</span>
+            <b>Pies</b>
+            <small>Obrońca · węch, szczekanie, ekstremalna prędkość</small>
+          </button>
+        </div>
+
+        <h2>Format meczu</h2>
+        <div class="format-grid">
+          <button class="fmt sel" data-format="3v1"><b>3 v 1</b><small>3 krety · 1 obrońca</small></button>
+          <button class="fmt" data-format="4v2"><b>4 v 2</b><small>4 krety · 2 obrońców</small></button>
+          <button class="fmt" data-format="custom"><b>Własny</b><small>ustaw skład sam</small></button>
+        </div>
+        <div id="custom-setup" class="custom-setup hidden"></div>
+
+        <button id="btn-play" class="cta">ROZPOCZNIJ MECZ</button>
+        <p class="sub-note" id="play-note"></p>
+      </section>
+
+      <section class="panel" data-panel="mp">
+        <div id="mp-connect">
+          <h2>Serwer sesji</h2>
+          <p class="shop-note">
+            Adres relaya PartyKit — lokalnie <code>localhost:1999</code>, przez tunel
+            np. <code>twoja-nazwa.loca.lt</code>. Ustawia się raz, zapamiętywane w przeglądarce.
+          </p>
+          <div class="mp-field">
+            <label for="mp-host">Adres serwera</label>
+            <input id="mp-host" type="text" placeholder="localhost:1999" autocomplete="off" />
+          </div>
+          <div class="mp-field">
+            <label for="mp-name">Twoje imię</label>
+            <input id="mp-name" type="text" placeholder="Gracz" maxlength="20" autocomplete="off" />
+          </div>
+
+          <div class="mp-split">
+            <div class="mp-col">
+              <button id="btn-mp-create" class="cta">STWÓRZ SESJĘ</button>
+              <small>Dostaniesz kod do przekazania znajomym</small>
+            </div>
+            <div class="mp-col">
+              <input id="mp-code" class="mp-code-input" type="text" placeholder="KOD" maxlength="6" autocomplete="off" />
+              <button id="btn-mp-join" class="cta ghost">DOŁĄCZ</button>
+            </div>
+          </div>
+          <p class="sub-note" id="mp-connect-note"></p>
+        </div>
+
+        <div id="mp-lobby" class="hidden">
+          <h2>Poczekalnia</h2>
+          <div class="mp-room-code">
+            Kod pokoju: <b id="mp-room-code">----</b>
+            <button id="btn-mp-copy" class="cs-btn" title="Kopiuj kod">⧉</button>
+          </div>
+          <p class="shop-note">Frakcję zmieniasz w zakładce „Graj” — od razu widać ją tu w składzie.</p>
+          <div id="mp-roster" class="mp-roster"></div>
+          <button id="btn-mp-start" class="cta hidden">START MECZU</button>
+          <p class="sub-note" id="mp-wait-note"></p>
+          <button id="btn-mp-leave" class="cta ghost">ROZŁĄCZ</button>
+        </div>
+      </section>
+
+      <section class="panel" data-panel="loadout">
+        <h2>Perki <small>(wybierz 2)</small></h2>
+        <div id="perk-list" class="perk-list"></div>
+      </section>
+
+      <section class="panel" data-panel="shop">
+        <h2>Sklep</h2>
+        <p class="shop-note">Srebro odblokowuje klasy i rasy. Złote żołędzie to kosmetyka.</p>
+        <div id="shop-list" class="shop-list"></div>
+      </section>
+
+      <section class="panel" data-panel="help">
+        <h2>Sterowanie</h2>
+        <div class="keys">
+          <div><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd><span>ruch (względem kamery)</span></div>
+          <div><kbd>LPM</kbd><span>obrót w kierunku kursora + atak podstawowy</span></div>
+          <div><kbd>Spacja</kbd><span>Kret: zejdź pod ziemię / wynurz się</span></div>
+          <div><kbd>Shift</kbd><span>sprint (zużywa staminę)</span></div>
+          <div><kbd>E</kbd><span>akcja: zbierz warzywo / oddaj w norze / zniszcz kopiec</span></div>
+          <div><kbd>Q</kbd><span>umiejętność 1</span></div>
+          <div><kbd>F</kbd><span>umiejętność 2</span></div>
+          <div><kbd>Esc</kbd><span>pauza / powrót do menu</span></div>
+        </div>
+        <h2>Dotyk</h2>
+        <div class="keys">
+          <div><span class="k-round">◎</span><span>lewy dolny róg — wirtualny joystick</span></div>
+          <div><span class="k-round">✥</span><span>przeciągnij i puść przycisk umiejętności, aby ją wycelować</span></div>
+        </div>
+      </section>
+
+      <footer class="foot">Three.js · WebGL · prototyp v0.1</footer>
+    </div>
+
+    <!-- ======================= EKRAN KOŃCOWY ======================= -->
+    <div id="endscreen" class="layer hidden">
+      <div class="end-card">
+        <h1 id="end-title">KRETY WYGRYWAJĄ</h1>
+        <p id="end-sub"></p>
+        <div class="end-stats" id="end-stats"></div>
+        <div class="end-reward">
+          <span class="coin silver">🪙 +<b id="end-silver">0</b></span>
+          <span class="coin gold">🌰 +<b id="end-gold">0</b></span>
+        </div>
+        <div class="end-actions">
+          <button id="btn-again" class="cta">JESZCZE RAZ</button>
+          <button id="btn-menu" class="cta ghost">MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading" class="layer loading"><div class="spin"></div><span>Ładowanie ogrodu…</span></div>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>

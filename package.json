@@ -1,0 +1,23 @@
+{
+  "name": "mole-mayhem",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Mole Mayhem 3D - asymetryczna arena/stealth (Krety vs Obroncy) na Three.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4173 --host",
+    "party:dev": "partykit dev",
+    "party:deploy": "partykit deploy",
+    "tunnel": "localtunnel --port 1999 --subdomain mole-mayhem-fizii"
+  },
+  "dependencies": {
+    "three": "^0.182.0"
+  },
+  "devDependencies": {
+    "localtunnel": "^2.0.2",
+    "partykit": "^0.0.115",
+    "vite": "^7.1.0"
+  }
+}

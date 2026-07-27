@@ -1,0 +1,6 @@
+{
+  "$schema": "https://www.partykit.io/schema.json",
+  "name": "mole-mayhem",
+  "main": "party/session.js",
+  "compatibilityDate": "2026-07-26"
+}
