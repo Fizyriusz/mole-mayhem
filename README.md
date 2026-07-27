@@ -136,24 +136,40 @@ za każdym razem — i nie wymaga przebudowy/redeployu frontendu, gdy zmieni si�
 
 ### Wdrożenie (Vercel + PartyKit)
 
-**Frontend na Vercel:** zwykły static build, bez żadnej konfiguracji specjalnej pod Vercel —
-`npm run build` produkuje `dist/`, które Vercel serwuje jako static site (framework preset: Vite,
-albo po prostu wskaż `dist` jako Output Directory).
+> **Najważniejsze ograniczenie:** strona na Vercelu chodzi po HTTPS, a przeglądarka **blokuje**
+> stronie HTTPS otwieranie połączeń `ws://` (mixed content). Po wdrożeniu na Vercel relay na
+> localhoście / LAN / Tailscale **przestaje działać** — musi mieć TLS. Dlatego `party:deploy`
+> (albo tunel po HTTPS) jest wymagany, a nie opcjonalny. Gra wykrywa ten przypadek i pokazuje
+> konkretny komunikat zamiast generycznego timeoutu.
 
-**Serwer sesji — dwie opcje:**
+**Krok 1 — relay na PartyKit** (musi być pierwszy, bo jego adres jest potrzebny do builda):
 
-1. **Lokalnie + tunel** (jak wyżej, `party:dev` + `tunnel`) — Twój komputer musi być włączony,
-   żeby ktokolwiek mógł dołączyć, ale zero kont/płatnych usług. `localtunnel`'s podana nazwa
-   subdomeny (`--subdomain`) jest pierwszy-na-mecie, więc przy kolizji nazwy zmień ją w
-   `package.json`'s `tunnel` skrypcie.
-2. **`npm run party:deploy`** — publikuje `party/session.js` na `<nazwa>.<twój-user>.partykit.dev`
-   (darmowy plan PartyKit, logowanie przez GitHub w CLI). Serwer działa 24/7 bez Twojego
-   komputera — wygodniejsze, jeśli gracie regularnie.
+```bash
+npm run party:deploy      # logowanie przez GitHub przy pierwszym uruchomieniu
+```
 
-W obu przypadkach: wpisz finalny adres w polu *Adres serwera* w grze (zapamięta się), albo ustaw
-zmienną środowiskową `VITE_PARTYKIT_HOST` w projekcie na Vercelu jako domyślną wartość tego pola
-(patrz `getSavedHost()` w [`src/net/client.js`](src/net/client.js) — env var jest tylko
-fallbackiem, pole w UI zawsze wygrywa, jeśli coś w nim wpisano).
+Wypisze adres w formacie `mole-mayhem.<twój-login>.partykit.dev`. Nazwa `mole-mayhem` pochodzi
+z pola `name` w [`partykit.json`](partykit.json).
+
+**Krok 2 — frontend na Vercel:** *Add New → Project* → import repo z GitHuba. Vercel wykryje Vite
+sam, a [`vercel.json`](vercel.json) i tak ustawia to jawnie (`npm run build` → `dist/`). Przed
+pierwszym deployem dodaj zmienną środowiskową:
+
+| Klucz | Wartość |
+|---|---|
+| `VITE_PARTYKIT_HOST` | `mole-mayhem.<twój-login>.partykit.dev` |
+
+**Vite podstawia zmienne `VITE_*` w momencie budowania, nie w przeglądarce** — jeśli dodasz ją
+po deployu, trzeba zrobić *Redeploy*, żeby zadziałała. Bez niej gra na HTTPS zostawia pole
+*Adres serwera* puste i trzeba je wypełnić ręcznie (patrz `defaultHost()` w
+[`src/net/client.js`](src/net/client.js)).
+
+Kolejność źródeł adresu: **wpis gracza w polu (localStorage) → `VITE_PARTYKIT_HOST` → auto-wykrycie
+z adresu strony**. Ręczny wpis zawsze wygrywa, więc da się podmienić relay bez redeployu.
+
+**Alternatywa bez Vercela:** zostaw grę lokalnie (`npm run dev`) i wystaw ją przez Tailscale albo
+`npm run tunnel`. Wtedy wszystko chodzi po HTTP i relay na `localhost:1999` działa bez przeszkód —
+kosztem tego, że Twój komputer musi być włączony.
 
 ### Znane uproszczenia V1
 

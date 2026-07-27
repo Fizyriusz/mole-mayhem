@@ -17,12 +17,18 @@ export function randomRoomCode(len = 4) {
 const DEFAULT_RELAY_PORT = 1999;   // domyslny port `partykit dev`
 
 /**
- * Domyslny adres relaya. Kluczowe jest ostatnie ogniwo: relay prawie zawsze stoi
- * na TYM SAMYM hoscie, z ktorego serwowana jest gra, wiec bierzemy `location.hostname`.
- * Bez tego telefon otwierajacy grę po Tailscale/LAN dostawalby w polu "localhost:1999",
- * czyli probowalby sie polaczyc z SAMYM SOBA i dostawal mylacy blad polaczenia.
+ * Domyslny adres relaya, gdy nic nie zapisano i nie ustawiono VITE_PARTYKIT_HOST.
+ *
+ * Przy grze serwowanej po HTTP (dev, LAN, Tailscale) relay stoi zwykle na TYM SAMYM
+ * hoscie, wiec bierzemy `location.hostname` — bez tego telefon dostawalby w polu
+ * "localhost:1999" i probowal laczyc sie z SAMYM SOBA.
+ *
+ * Przy HTTPS (deploy na Vercel) to zgadywanie nie ma sensu: pod `<domena>:1999`
+ * nic nie nasluchuje, a przegladarka i tak zablokuje ws:// ze strony HTTPS.
+ * Zwracamy puste pole, zeby zmusic do podania adresu z TLS-em.
  */
 export function defaultHost() {
+  if (location.protocol === 'https:') return '';
   const h = location.hostname;
   if (!h || h === 'localhost' || h === '127.0.0.1') return `localhost:${DEFAULT_RELAY_PORT}`;
   return `${h}:${DEFAULT_RELAY_PORT}`;
@@ -85,6 +91,17 @@ export class NetClient {
     this.disconnect();
     this.room = room;
     const url = `${normalizeHost(hostInput)}/parties/main/${room}`;
+
+    // Mixed content: strona po HTTPS nie moze otworzyc zwyklego ws:// — przegladarka
+    // zrywa polaczenie zanim cokolwiek poleci. Bez tej kontroli uzytkownik dostawalby
+    // tylko generyczny timeout i nie mial pojecia, ze problem jest w schemacie adresu.
+    if (location.protocol === 'https:' && url.startsWith('ws://')) {
+      return Promise.reject(new Error(
+        'Gra działa po HTTPS, więc przeglądarka zablokuje serwer bez TLS (ws://). ' +
+        'Podaj adres z HTTPS — np. ten z „npm run party:deploy" (*.partykit.dev). ' +
+        'Adresy localhost / LAN / Tailscale działają tylko przy grze uruchomionej lokalnie.'
+      ));
+    }
 
     return new Promise((resolve, reject) => {
       let settled = false;
