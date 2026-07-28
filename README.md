@@ -149,7 +149,13 @@ npm run relay:deploy
 ```
 
 Wypisze adres w formacie `mole-mayhem-relay.<twój-subdomain>.workers.dev`. Człon
-`mole-mayhem-relay` pochodzi z pola `name` w [`wrangler.toml`](wrangler.toml).
+`mole-mayhem-relay` pochodzi z pola `name` w [`wrangler.toml`](wrangler.toml), a
+`<twój-subdomain>` to subdomena konta (panel → *Workers & Pages* → *Account Details*).
+
+> Jeśli deploy przerwie z „You need to register a workers.dev subdomain": konto nie ma jeszcze
+> subdomeny. Wrangler próbuje o nią zapytać, ale **w trybie nieinteraktywnym sam sobie odpowiada
+> „nie"** i przerywa — bez żadnego widocznego pytania. Subdomenę zakłada się raz, w panelu
+> Cloudflare; potem deploy przechodzi bez pytań.
 
 **Krok 2 — frontend na Vercel:** *Add New → Project* → import repo z GitHuba. Vercel wykryje Vite
 sam, a [`vercel.json`](vercel.json) i tak ustawia to jawnie (`npm run build` → `dist/`). Przed
