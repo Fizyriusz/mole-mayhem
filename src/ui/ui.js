@@ -5,6 +5,7 @@
 import { PERKS, SHOP, CUSTOM_LIMITS, resolveMatchSetup, suggestedGoal } from '../core/config.js';
 import { NetClient, randomRoomCode, getSavedHost, saveHost, getSavedName, saveName } from '../net/client.js';
 import * as Eco from '../meta/economy.js';
+import * as Settings from '../meta/settings.js';
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
@@ -26,6 +27,7 @@ export class UI {
       silver: $('#w-silver'), gold: $('#w-gold'),
       perkList: $('#perk-list'), shopList: $('#shop-list'), playNote: $('#play-note'),
       customSetup: $('#custom-setup'),
+      shakeVal: $('#shake-val'), shakeMinus: $('#shake-minus'), shakePlus: $('#shake-plus'),
       endTitle: $('#end-title'), endSub: $('#end-sub'), endStats: $('#end-stats'),
       endSilver: $('#end-silver'), endGold: $('#end-gold'),
       mpConnect: $('#mp-connect'), mpLobby: $('#mp-lobby'),
@@ -78,6 +80,18 @@ export class UI {
     $('#btn-play').addEventListener('click', () => this._startOrRematch());
     $('#btn-again').addEventListener('click', () => this._startOrRematch());
     $('#btn-menu').addEventListener('click', () => this.onQuitToMenu());
+
+    const shakeStep = 0.25;   // 5 poziomow: 0/25/50/75/100% — 0% jest jednoczesnie pelnym wylaczeniem
+    this.el.shakeMinus.addEventListener('click', () => {
+      Settings.setShakeIntensity(Settings.getSettings().shakeIntensity - shakeStep);
+      this._renderSettings();
+      this.audio?.play('ui');
+    });
+    this.el.shakePlus.addEventListener('click', () => {
+      Settings.setShakeIntensity(Settings.getSettings().shakeIntensity + shakeStep);
+      this._renderSettings();
+      this.audio?.play('ui');
+    });
   }
 
   /**
@@ -214,6 +228,7 @@ export class UI {
 
     this.el.customSetup.classList.toggle('hidden', save.format !== 'custom');
     if (save.format === 'custom') this._renderCustom();
+    this._renderSettings();
     this._renderPerks();
     this._renderShop();
   }
@@ -264,6 +279,14 @@ export class UI {
     if (ratio >= 4) warn += '<br><span class="cs-warn">Przewaga kretów jest miażdżąca — obrońcy raczej nie zdążą.</span>';
     sum.innerHTML = `Na arenie: ${parts.join(' · ')}. Ty grasz <b>${you}</b>, resztę prowadzą boty.${warn}`;
     this.el.customSetup.appendChild(sum);
+  }
+
+  /** Suwak intensywnosci wstrzasow kamery — 0% jest jednoczesnie pelnym wylaczeniem. */
+  _renderSettings() {
+    const val = Settings.getSettings().shakeIntensity;
+    this.el.shakeVal.textContent = Math.round(val * 100) + '%';
+    this.el.shakeMinus.disabled = val <= 0;
+    this.el.shakePlus.disabled = val >= 1;
   }
 
   _renderPerks() {

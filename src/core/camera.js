@@ -5,6 +5,8 @@
  */
 import * as THREE from 'three';
 import { LAYER } from './config.js';
+import { CameraShake } from '../fx/camerashake.js';
+import { getSettings } from '../meta/settings.js';
 
 const SURFACE_OFFSET = new THREE.Vector3(0, 13.0, 10.5);
 const UNDER_OFFSET = new THREE.Vector3(0, 9.5, 7.6);
@@ -17,7 +19,7 @@ export class CameraRig {
     this.targetOffset = SURFACE_OFFSET.clone();
     this.lookAt = new THREE.Vector3();
     this.position = new THREE.Vector3(0, 20, 16);
-    this.shakeAmount = 0;
+    this.shakeFx = new CameraShake();
     this.under = false;
     this.zoom = 1;
   }
@@ -35,7 +37,17 @@ export class CameraRig {
     }
   }
 
-  shake(amount) { this.shakeAmount = Math.min(1.2, this.shakeAmount + amount); }
+  /**
+   * @param {number} amount — 0..1, sila impulsu PRZED zastosowaniem ustawien gracza.
+   * Intensywnosc z ustawien mnozy sie tu, na wejsciu — przy wylaczonych wstrzasach
+   * trauma w ogole sie nie kumuluje (nie tylko nie jest widoczna), wiec przelaczenie
+   * suwaka z powrotem w gore nie odpala "zalegloscia" starego zdarzenia.
+   */
+  shake(amount) {
+    const intensity = getSettings().shakeIntensity;
+    if (intensity <= 0) return;
+    this.shakeFx.add(amount * intensity);
+  }
 
   /** @param {{x:number,y:number,z:number}} target — pozycja sledzonej postaci */
   follow(target, dt, lead = null) {
@@ -52,14 +64,13 @@ export class CameraRig {
     );
     this.position.lerp(want, Math.min(1, dt * 5.5));
 
+    // `this.position` to "prawdziwa" pozycja logiczna kamery — nastepna klatka
+    // lerpuje dalej OD NIEJ, nie od wersji potrzasnietej. Offset trzesienia
+    // nakladamy dopiero na `camera.position`, przy skladaniu finalnej
+    // transformacji, zeby wstrzas nigdy nie zaburzyl plynnosci sledzenia.
     this.camera.position.copy(this.position);
-    if (this.shakeAmount > 0.001) {
-      this.shakeAmount = Math.max(0, this.shakeAmount - dt * 2.2);
-      const s = this.shakeAmount * 0.55;
-      this.camera.position.x += (Math.random() - 0.5) * s;
-      this.camera.position.y += (Math.random() - 0.5) * s;
-      this.camera.position.z += (Math.random() - 0.5) * s;
-    }
+    const shakeOffset = this.shakeFx.update(dt);
+    this.camera.position.add(shakeOffset);
     this.camera.lookAt(this.lookAt);
   }
 
@@ -69,6 +80,7 @@ export class CameraRig {
     this.position.set(target.x + this.offset.x, target.y + this.offset.y, target.z + this.offset.z);
     this.camera.position.copy(this.position);
     this.camera.lookAt(this.lookAt);
+    this.shakeFx.reset();   // nowy mecz nie powinien dziedziczyc trzesienia z poprzedniego
   }
 
   resize(w, h) {

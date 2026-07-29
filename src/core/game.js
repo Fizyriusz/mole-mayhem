@@ -142,6 +142,19 @@ export class Game {
     return Math.hypot(this.camera.position.x - x, this.camera.position.z - z);
   }
 
+  /**
+   * Trzesienie kamery z zanikiem po odleglosci od zrodla — ten sam wzorzec co
+   * `audio.play(name, vol, dist)`. Kazdy klient liczy falloff wobec WLASNEJ
+   * kamery, wiec wywolanie jest bezpieczne w petli hosta, w petli goscia i
+   * w kodzie diffujacym snapshoty (patrz netsync.js) bez zadnej koordynacji
+   * sieciowej — czysto lokalny efekt wizualny, zero wplywu na symulacje.
+   */
+  shakeAt(x, z, amount, maxDist = 14) {
+    const dist = this.distanceToCamera(x, z);
+    if (dist >= maxDist) return;
+    this.rig.shake(amount * (1 - dist / maxDist));
+  }
+
   /* -------------------------------------------------------- MULTIPLAYER */
 
   /**

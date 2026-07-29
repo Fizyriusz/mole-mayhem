@@ -109,6 +109,32 @@ export const AI = {
   moleFleeHp: 45
 };
 
+/**
+ * Trzesienie kamery — czysto wizualny efekt (patrz src/fx/camerashake.js).
+ * Nigdy nie wplywa na symulacje, wiec bezpiecznie moze sie roznic klatka po
+ * klatce miedzy klientami bez zadnych konsekwencji dla stanu meczu.
+ */
+export const CAMERA_SHAKE = {
+  maxTrauma: 1,
+  halfLife: 0.25,          // po tylu sekundach trauma spada o polowe (wykladniczy zanik)
+  // Kamera jest DALEKO od sledzonej postaci (offset ~17 jednostek), wiec zeby
+  // przesuniecie pozycji bylo widoczne na ekranie, musi byc wieksze niz przy
+  // typowej bliskiej kamerze FPS. maxOffset=1.4 przy trauma=1 daje wyrazne,
+  // ale nie chaotyczne drganie — zweryfikowane zrzutami ekranu.
+  maxOffset: 1.4,
+  noiseInterval: 0.045,     // co ile sekund losujemy nowy kierunek szumu (wygladzany miedzy probkami)
+  impulses: {
+    dogBark: 0.4,
+    gardenerHit: 0.55,
+    hoseEject: 0.7
+  },
+  falloffDist: {
+    dogBark: 11,
+    gardenerHit: 6,
+    hoseEject: 13
+  }
+};
+
 export const ECONOMY = {
   silverPerMatch: 40,
   silverWinBonus: 55,

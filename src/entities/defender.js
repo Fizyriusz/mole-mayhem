@@ -2,7 +2,7 @@
  * Frakcja B — Obroncy. Wspolna baza (atak wrecz w stozku + kroki generujace
  * fale slyszalne przez krety pod ziemia) oraz dwie klasy: Ogrodnik i Pies.
  */
-import { LAYER } from '../core/config.js';
+import { LAYER, CAMERA_SHAKE } from '../core/config.js';
 import { Actor } from './actor.js';
 import { buildGardener, buildDog, buildHat } from './models.js';
 import { setLayerDeep } from '../world/arena.js';
@@ -54,6 +54,12 @@ class Defender extends Actor {
       }
       if (!hitAny) this.game.particles.dustPuff(this.x + Math.sin(swingDir) * cfg.range * 0.6, this.z + Math.cos(swingDir) * cfg.range * 0.6);
       this.game.ripples.pulse(this.x + Math.sin(swingDir) * 1.2, this.z + Math.cos(swingDir) * 1.2, cfg.range, hitAny ? 0xff5252 : 0xffb14d);
+      // Wstrzas TYLKO przy trafieniu mlotkiem Ogrodnika (Zadanie 1) — klapniecie
+      // Psa uzywa tego samego attack(), ale prompt wymienil je jako osobny,
+      // niewstrzasajacy przypadek, wiec celowo tu nie trzesiemy.
+      if (hitAny && this.cls === 'gardener') {
+        this.game.shakeAt(this.x, this.z, CAMERA_SHAKE.impulses.gardenerHit, CAMERA_SHAKE.falloffDist.gardenerHit);
+      }
     });
   }
 
@@ -163,6 +169,9 @@ export class Gardener extends Defender {
         }
       }
       this.game.mounds.destroy(mound);
+      if (caught > 0) {
+        this.game.shakeAt(mound.x, mound.z, CAMERA_SHAKE.impulses.hoseEject, CAMERA_SHAKE.falloffDist.hoseEject);
+      }
       if (this.isLocal) {
         this.game.ui.flashHint(caught ? `Wypłukane krety: ${caught}!` : 'Tunel pusty…');
       }
@@ -237,6 +246,7 @@ export class Dog extends Defender {
     this.game.audio.play('bark');
     this.game.ripples.bark(this.x, this.z, cfg.radius);
     this.game.ripples.spawn(this.x, this.z, { radius: cfg.radius, life: 0.9, color: 0xffd166, rings: 3, strength: 1.2, y: -1.97 });
+    this.game.shakeAt(this.x, this.z, CAMERA_SHAKE.impulses.dogBark, CAMERA_SHAKE.falloffDist.dogBark);
 
     let hit = 0;
     for (const a of this.game.actors) {

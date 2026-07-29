@@ -8,7 +8,7 @@
  * postac goscia i tak dostaje pelna, natychmiastowa informacje zwrotna z
  * wlasnej (predykcyjnej) symulacji, wiec nie potrzebuje echa z sieci.
  */
-import { ARENA } from './config.js';
+import { ARENA, CAMERA_SHAKE } from './config.js';
 
 export function serializeSnapshot(game) {
   const actors = game.actors.map(a => ({
@@ -87,6 +87,15 @@ export function applySnapshot(game, msg) {
       if (entry.h < prev.h) {
         const y = entry.u ? ARENA.undergroundY : 0;
         game.particles.hit(entry.x, y + 0.9, entry.z, a.team === 'mole' ? 0xff6b6b : 0xffd166);
+        // Zadanie 1 (rozszerzenie): wstrzas kamery tez dla OBSERWATOROW, nie tylko
+        // sprawcy/ofiary — bez zadnego nowego pola w snapshocie, bo hp/underground
+        // juz i tak leca co klatke. Wyplukanie wezem = jednoczesny spadek hp I
+        // wynurzenie w tej samej klatce; z boku nie da sie odroznic mlotka od
+        // klapniecia Psa, wiec dla nich uzywamy slabszego, ogolnego impulsu.
+        const wasEjected = prev.u && !entry.u;
+        game.shakeAt(entry.x, entry.z,
+          wasEjected ? CAMERA_SHAKE.impulses.hoseEject : CAMERA_SHAKE.impulses.gardenerHit * 0.7,
+          wasEjected ? CAMERA_SHAKE.falloffDist.hoseEject : CAMERA_SHAKE.falloffDist.gardenerHit);
       }
       if (prev.a && !entry.a) {
         game.audio.play('alarm');
