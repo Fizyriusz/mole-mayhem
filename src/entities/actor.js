@@ -356,6 +356,13 @@ export class Actor {
     if (this.underground !== !!state.u) {
       this.underground = !!state.u;
       this.setLayer(this.underground ? LAYER.UNDER : LAYER.SURFACE);
+      // BEZ TEGO: kamera/niebo/mgla zostaja w poprzednim trybie, bo je przelacza
+      // tylko Mole.setUnderground() (lokalny toggleDig). Gdy host koryguje TEN
+      // aktor (np. po tym jak jego wlasny "dig" zagubil sie/spoznil w sieci —
+      // zauwazalne zwlaszcza na mobile, gdzie RTT do relaya jest wyzszy), sam
+      // boolean sie zgadza, ale gracz nadal WIDZI zle otoczenie i naciska "kop"
+      // w zla strone, wpadajac w petle "caly czas wchodze z powrotem pod ziemie".
+      this.game.setLocalUnderground(this.underground);
     }
     if (this.alive && !state.a) {
       this.alive = false;
