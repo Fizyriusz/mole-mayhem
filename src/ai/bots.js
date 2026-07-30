@@ -238,6 +238,15 @@ export class DefenderBrain extends Brain {
     const obstacles = this.game.world.obstaclesSurface;
     const { visible, vd, sensed, sd } = this.perceive();
 
+    // Pies: kopiec wyczuty weszem, ktorego i tak nie zdazy sprawdzic, bo jest
+    // zajety kretem (widocznym lub tropionym) — ostrzega druzyne pingiem
+    // zamiast go po prostu mijac. Sam ping nie przerywa poscigu (ustawiany
+    // obok, branze nizej i tak zwroca c z ruchem/atakiem).
+    if (a.cls === 'dog' && !a.isOnCooldown('ping') && (visible || sensed)) {
+      const mound = this.game.mounds.nearest(a.x, a.z, a.stats.smellRange);
+      if (mound) c.ping = { x: mound.x, z: mound.z, kind: 'mark' };
+    }
+
     // 1) Kret na powierzchni — bezposredni poscig
     if (visible) {
       this.state = 'chase';

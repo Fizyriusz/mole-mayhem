@@ -4,7 +4,7 @@
  * (klawiatura / dotyk / AI / w przyszlosci pakiet sieciowy).
  */
 import * as THREE from 'three';
-import { ARENA, LAYER } from '../core/config.js';
+import { ARENA, LAYER, PING } from '../core/config.js';
 import { resolve } from '../core/collision.js';
 import { setLayerDeep } from '../world/arena.js';
 import { disposeObject } from '../core/dispose.js';
@@ -13,7 +13,8 @@ import { buildNameTag } from './models.js';
 export const EMPTY_COMMAND = {
   mx: 0, mz: 0, sprint: false,
   aimX: null, aimZ: null,
-  primary: false, dig: false, interact: false, ability1: false, ability2: false
+  primary: false, dig: false, interact: false, ability1: false, ability2: false,
+  ping: null   // { x, z, kind } — jednoklatkowy impuls, patrz src/core/input.js
 };
 
 let nextId = 1;
@@ -226,6 +227,13 @@ export class Actor {
 
     this.animate(dt);
     this.updateAbilities(dt, cmd, blocked);
+
+    // Ping: dziala niezaleznie od `blocked` (ogluszenie nie powinno wylaczac
+    // komunikacji z druzyna) — jedyny gate to wlasny cooldown aktora.
+    if (cmd.ping && !this.isOnCooldown('ping')) {
+      this.startCooldown('ping', PING.cooldown);
+      this.game.addPing(cmd.ping.x, cmd.ping.z, cmd.ping.kind, this.team, this);
+    }
   }
 
   currentSpeed(sprinting) {

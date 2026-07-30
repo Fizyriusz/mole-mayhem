@@ -300,6 +300,24 @@ kbd, .k-round {
 .ab.cooling .ab-cd { display: flex; }
 .ab.ready { border-color: var(--gold); }
 .ab.aiming { border-color: var(--carrot); background: rgba(255,138,61,.3); }
+.ab.ping.ready { border-color: var(--stamina); }
+.ab.ping.aiming { border-color: var(--stamina); background: rgba(77,210,255,.28); }
+
+/* ============================ PINGI (poza kadrem) ============================ */
+.ping-edges { position: absolute; inset: 0; pointer-events: none; }
+.ping-edge {
+  position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px;
+  display: flex; align-items: center; justify-content: center;
+  animation: pingEdgeIn .15s ease;
+}
+.ping-edge.hidden { display: none; }
+.pe-arrow {
+  width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent;
+  border-bottom: 16px solid var(--gold); filter: drop-shadow(0 1px 3px rgba(0,0,0,.7));
+}
+.ping-edge.kind-trap .pe-arrow { border-bottom-color: var(--carrot); }
+.ping-edge.kind-danger .pe-arrow { border-bottom-color: var(--danger); }
+@keyframes pingEdgeIn { from { transform: scale(.4); opacity: 0; } }
 
 .stick {
   position: absolute; left: 26px; bottom: 96px; width: 118px; height: 118px; border-radius: 50%;

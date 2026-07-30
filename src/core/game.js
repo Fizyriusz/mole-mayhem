@@ -4,7 +4,7 @@
  * nowy mecz, `endMatch()` sprzata.
  */
 import * as THREE from 'three';
-import { ARENA, LAYER, MATCH, MOLE, GARDENER, DOG, cloneStats, resolveMatchSetup } from './config.js';
+import { ARENA, LAYER, MATCH, MOLE, GARDENER, DOG, PING, cloneStats, resolveMatchSetup } from './config.js';
 import { CameraRig } from './camera.js';
 import { InputSystem } from './input.js';
 import { AudioEngine } from './audio.js';
@@ -15,6 +15,7 @@ import { BurrowSystem } from '../world/burrows.js';
 import { Particles } from '../fx/particles.js';
 import { RippleSystem } from '../fx/ripples.js';
 import { ScentSystem } from '../fx/scent.js';
+import { PingSystem } from '../fx/pings.js';
 import { PostFX } from '../fx/postfx.js';
 import { Mole, ProjectileSystem } from '../entities/mole.js';
 import { Gardener, Dog } from '../entities/defender.js';
@@ -97,6 +98,11 @@ export class Game {
     this.particles = new Particles(this.scene);
     this.ripples = new RippleSystem(this.scene);
     this.scent = new ScentSystem(this.scene, this.world);
+    this.pingFx = new PingSystem(this.scene);
+    this.pings = [];          // log ostatnich pingow — zrodlo dla serializeSnapshot()
+    this._pingSeq = 0;
+    this._seenPings = new Set();   // gosc: id-ki juz pokazanych pingow (deduplikacja miedzy snapshotami)
+    this.pingScreens = [];    // gotowe wspolrzedne ekranowe dla ui.js (patrz _updatePingScreens)
     this.mounds = new MoundSystem(this.scene);
     this.burrows = new BurrowSystem(this.scene, this.world);
     this.traps = new TrapSystem(this);
@@ -153,6 +159,71 @@ export class Game {
     const dist = this.distanceToCamera(x, z);
     if (dist >= maxDist) return;
     this.rig.shake(amount * (1 - dist / maxDist));
+  }
+
+  /**
+   * Zapisuje ping do logu (zrodlo prawdy dla snapshotow, patrz netsync.js) i
+   * od razu probuje go pokazac lokalnie. Wolane WYLACZNIE z Actor.update() —
+   * host wola to dla kazdego aktora ktory pinguje (wlasny, boty, goscie przez
+   * remoteCommands), gosc tylko dla wlasnej, lokalnie symulowanej postaci.
+   */
+  addPing(x, z, kind, team, byActor) {
+    const entry = {
+      id: ++this._pingSeq,
+      x: +x.toFixed(2), z: +z.toFixed(2), kind, team,
+      by: this.actors.indexOf(byActor),
+      createdAt: this.time
+    };
+    this.pings.push(entry);
+    if (this.pings.length > 24) this.pings.shift();
+    this.showPing(entry);
+  }
+
+  /**
+   * Wizualia + dzwiek pingu — TYLKO gdy nalezy do wlasnej frakcji. To jest
+   * jedyne miejsce filtrowania "ukrytej informacji" dla pingow (ten sam
+   * mechanizm co warstwy renderowania dla kretow pod ziemia): dane moga
+   * swobodnie plynac przez snapshot do wszystkich klientow, ale renderujemy
+   * tylko to, co nalezy do lokalnej druzyny.
+   */
+  showPing(entry) {
+    if (!this.localActor || entry.team !== this.localActor.team) return;
+    this.pingFx.spawn(entry.x, entry.z, entry.kind, PING.life);
+    this.audio.play('ping', 0.8, this.distanceToCamera(entry.x, entry.z));
+  }
+
+  /**
+   * Rzutuje aktywne znaczniki pingow na ekran i przygotowuje gotowe liczby
+   * (px, kat strzalki) dla ui.js, ktore celowo nie zna Three.js. Gdy znacznik
+   * jest poza kadrem (albo za kamera), pozycja zostaje przypieta do krawedzi
+   * ekranu wzdluz kierunku do celu.
+   */
+  _updatePingScreens() {
+    const w = this.canvas.clientWidth || innerWidth;
+    const h = this.canvas.clientHeight || innerHeight;
+    const cx = w / 2, cy = h / 2;
+    const margin = PING.edgeMargin;
+    const out = [];
+    for (const it of this.pingFx.items) {
+      if (!it.active) continue;
+      const v = it.mesh.position.clone().project(this.camera);
+      const behind = v.z > 1;
+      let sx = (v.x * 0.5 + 0.5) * w;
+      let sy = (1 - (v.y * 0.5 + 0.5)) * h;
+      if (behind) { sx = w - sx; sy = h - sy; }   // punkt za kamera — kierunek sie odwraca
+      const onscreen = !behind && sx >= 0 && sx <= w && sy >= 0 && sy <= h;
+      let left = sx, top = sy;
+      if (!onscreen) {
+        const dx = sx - cx, dy = sy - cy;
+        const scaleX = (w / 2 - margin) / Math.max(Math.abs(dx), 1e-6);
+        const scaleY = (h / 2 - margin) / Math.max(Math.abs(dy), 1e-6);
+        const s = Math.min(scaleX, scaleY);
+        left = cx + dx * s;
+        top = cy + dy * s;
+      }
+      out.push({ kind: it.kind, onscreen, left, top, angle: Math.atan2(sy - cy, sx - cx) * 180 / Math.PI + 90 });
+    }
+    this.pingScreens = out;
   }
 
   /* -------------------------------------------------------- MULTIPLAYER */
@@ -489,6 +560,9 @@ export class Game {
     }
     this.mounds.items.forEach(m => { m.alive = false; m.target = 0; m.scale = 0; });
     this.mounds.update(0.016);
+    this.pingFx.clear();
+    this.pings.length = 0;
+    this._seenPings.clear();
   }
 
   quitToMenu() {
@@ -704,6 +778,7 @@ export class Game {
     this.scent.update(dt);
     this.traps.update(dt);
     this.projectiles.update(dt);
+    this.pingFx.update(dt);
 
     // ---- lokalny gracz: zaklocenia, kamera, podpowiedzi
     const view = this.viewTarget();
@@ -714,6 +789,7 @@ export class Game {
         this.world.undergroundLamp.position.set(view.x, ARENA.undergroundY + 3, view.z);
       }
     }
+    this._updatePingScreens();
 
     if (this.localActor && this.localActor.alive) {
       const a = this.localActor;
@@ -776,6 +852,7 @@ export class Game {
     this.scent.update(dt);
     this.traps.update(dt);
     this.projectiles.update(dt);
+    this.pingFx.update(dt);
 
     const view = this.viewTarget();
     if (view) {
@@ -784,6 +861,7 @@ export class Game {
         this.world.undergroundLamp.position.set(view.x, ARENA.undergroundY + 3, view.z);
       }
     }
+    this._updatePingScreens();
 
     if (this.localActor && this.localActor.alive) {
       const a = this.localActor;

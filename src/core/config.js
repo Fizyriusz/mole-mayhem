@@ -135,6 +135,18 @@ export const CAMERA_SHAKE = {
   }
 };
 
+/**
+ * System pingow (Zadanie 3) — komunikacja bez czatu. Pole `ping` jedzie w tym
+ * samym obiekcie Command co reszta wejscia (patrz src/entities/actor.js),
+ * wiec ten blok trzyma tylko strojenie: jak czesto wolno pingowac i jak dlugo
+ * znacznik zyje w swiecie, zanim zniknie.
+ */
+export const PING = {
+  cooldown: 2.2,   // limit czestotliwosci na aktora — inaczej staje sie spamem
+  life: 5,         // sekundy, zanim znacznik 3D wygasnie
+  edgeMargin: 46   // px od krawedzi ekranu dla wskaznika poza kadrem
+};
+
 export const ECONOMY = {
   silverPerMatch: 40,
   silverWinBonus: 55,

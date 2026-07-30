@@ -10,6 +10,12 @@
  */
 import { ARENA, CAMERA_SHAKE } from './config.js';
 
+// Pingi zyja w tym samym snapshocie co reszta stanu (Zadanie 3) — zadnego
+// nowego typu wiadomosci. Okno czasowe trzyma je w payloadzie tylko przez
+// pare kolejnych snapshotow po powstaniu (rzadkie, bo ograniczone cooldownem
+// na aktorze), wiec w typowej klatce to pole jest po prostu pustą tablicą.
+const PING_SNAPSHOT_WINDOW = 0.3;
+
 export function serializeSnapshot(game) {
   const actors = game.actors.map(a => ({
     x: +a.x.toFixed(2), z: +a.z.toFixed(2), f: +a.facing.toFixed(3),
@@ -37,7 +43,10 @@ export function serializeSnapshot(game) {
     winner: game._winner ?? null, reason: game._winReason ?? null,
     actors, veg,
     mounds: game.mounds.serializeActive(),
-    traps: game.traps.serializeActive()
+    traps: game.traps.serializeActive(),
+    pings: game.pings
+      .filter(p => game.time - p.createdAt < PING_SNAPSHOT_WINDOW)
+      .map(p => ({ id: p.id, x: p.x, z: p.z, kind: p.kind, team: p.team, by: p.by }))
   };
 }
 
@@ -116,4 +125,20 @@ export function applySnapshot(game, msg) {
   game.vegetables?.applyNetworkState(msg.veg, game.actors);
   game.mounds.applyNetworkState(msg.mounds);
   game.traps.applyNetworkState(msg.traps);
+
+  // --- pingi: dedup po id (moga przyjsc w kilku kolejnych snapshotach), a
+  // wlasny ping goscia pomijamy — juz go pokazal lokalnie, w momencie predykcji.
+  if (msg.pings && msg.pings.length) {
+    const selfIdx = game.actors.indexOf(game.localActor);
+    for (const p of msg.pings) {
+      if (game._seenPings.has(p.id)) continue;
+      game._seenPings.add(p.id);
+      if (p.by === selfIdx) continue;
+      game.showPing(p);
+    }
+    if (game._seenPings.size > 80) {
+      const keep = [...game._seenPings].slice(-40);
+      game._seenPings = new Set(keep);
+    }
+  }
 }

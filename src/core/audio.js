@@ -108,6 +108,8 @@ export class AudioEngine {
       case 'win':      [523, 659, 784, 1046, 1318].forEach((f, i) => this._tone({ freq: f, type: 'triangle', gain: .3 * g, decay: .45, when: i * .12 })); break;
       case 'lose':     [523, 415, 330, 262].forEach((f, i) => this._tone({ freq: f, type: 'sawtooth', gain: .26 * g, decay: .4, when: i * .14 })); break;
       case 'ui':       this._tone({ freq: 720, type: 'square', gain: .12 * g, decay: .07 }); break;
+      case 'ping':     this._tone({ freq: 880, to: 1320, type: 'sine', gain: .3 * g, attack: .004, decay: .09 });
+                       this._tone({ freq: 1320, type: 'sine', gain: .18 * g, decay: .08, when: .09 }); break;
       default: break;
     }
   }

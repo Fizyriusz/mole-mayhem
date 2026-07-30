@@ -14,7 +14,9 @@ const KEY_MAP = {
   KeyE: 'interact',
   KeyQ: 'ability1',
   KeyF: 'ability2',
-  ShiftLeft: 'sprint', ShiftRight: 'sprint'
+  ShiftLeft: 'sprint', ShiftRight: 'sprint',
+  KeyC: 'pingAim',    // ping na cel pod kursorem (kopiec/pulapka)
+  KeyX: 'pingSelf'    // szybki ping "tu/uwaga" na wlasnej pozycji, bez celowania
 };
 
 export class InputSystem {
@@ -32,6 +34,7 @@ export class InputSystem {
     this.stick = { id: null, active: false, x: 0, y: 0, baseX: 0, baseY: 0 };
     this.touchAim = null;              // { dx, dy } — wektor naciagniecia na mobile
     this.queuedAbilities = [];         // z przyciskow HUD
+    this.queuedPing = null;            // { drag: {dx,dy,len} | null } z przycisku pingu HUD
 
     this.raycaster = new THREE.Raycaster();
     this.plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
@@ -188,6 +191,39 @@ export class InputSystem {
     el.addEventListener('pointercancel', end);
   }
 
+  /**
+   * Przycisk pingu na HUD — stuk = ping "tu/uwaga" na wlasnej pozycji,
+   * przeciagniecie i puszczenie (jak przy umiejetnosciach) = ping na cel
+   * pod palcem. Ten sam gest swipe-and-release co bindAbilityButton,
+   * zeby dotyk byl spojny z reszta przyciskow.
+   */
+  bindPingButton(el) {
+    let dragging = null;
+    const start = e => {
+      e.preventDefault();
+      const r = el.getBoundingClientRect();
+      dragging = { id: e.pointerId, cx: r.left + r.width / 2, cy: r.top + r.height / 2, dx: 0, dy: 0 };
+      try { el.setPointerCapture?.(e.pointerId); } catch { /* jw. */ }
+      el.classList.add('aiming');
+    };
+    const move = e => {
+      if (!dragging || e.pointerId !== dragging.id) return;
+      dragging.dx = e.clientX - dragging.cx;
+      dragging.dy = e.clientY - dragging.cy;
+    };
+    const end = e => {
+      if (!dragging || e.pointerId !== dragging.id) return;
+      el.classList.remove('aiming');
+      const len = Math.hypot(dragging.dx, dragging.dy);
+      this.queuedPing = { drag: len > 24 ? { dx: dragging.dx / len, dy: dragging.dy / len, len } : null };
+      dragging = null;
+    };
+    el.addEventListener('pointerdown', start);
+    el.addEventListener('pointermove', move);
+    el.addEventListener('pointerup', end);
+    el.addEventListener('pointercancel', end);
+  }
+
   setStickElement(el) { this.stickEl = el; }
   setEnabled(v) {
     this.enabled = v;
@@ -210,7 +246,8 @@ export class InputSystem {
   buildCommand(camera, actor) {
     const c = {
       mx: 0, mz: 0, sprint: false, aimX: null, aimZ: null,
-      primary: false, dig: false, interact: false, ability1: false, ability2: false
+      primary: false, dig: false, interact: false, ability1: false, ability2: false,
+      ping: null
     };
     if (!this.enabled || !actor) return c;
 
@@ -270,6 +307,30 @@ export class InputSystem {
     }
     if (this.primaryEdge && aim) { c.aimX = aim.x; c.aimZ = aim.z; }
 
+    // Ping: krety maja dwa rodzaje ("pulapka" na cel / "uwaga-uciekaj" na sobie),
+    // obroncy tylko jeden ("podejrzana pozycja/kopiec") — oba klawisze dzialaja
+    // wiec identycznie dla nich. Klawiatura ma pierwszenstwo nad dotykiem tylko
+    // w tym sensie, ze oba moga ustawic c.ping w tej samej klatce — ostatni wygrywa,
+    // co w praniu nigdy sie nie zdarza (gracz uzywa albo jednego, albo drugiego wejscia).
+    if (this.edges.has('pingAim') && aim) {
+      c.ping = { x: aim.x, z: aim.z, kind: actor.team === 'mole' ? 'trap' : 'mark' };
+    }
+    if (this.edges.has('pingSelf')) {
+      c.ping = { x: actor.x, z: actor.z, kind: actor.team === 'mole' ? 'danger' : 'mark' };
+    }
+    if (this.queuedPing) {
+      const q = this.queuedPing;
+      if (q.drag) {
+        const wx = right.x * q.drag.dx + fwd.x * -q.drag.dy;
+        const wz = right.z * q.drag.dx + fwd.z * -q.drag.dy;
+        const len = Math.hypot(wx, wz) || 1;
+        const reach = 3 + Math.min(1, q.drag.len / 90) * 9;
+        c.ping = { x: actor.x + (wx / len) * reach, z: actor.z + (wz / len) * reach, kind: actor.team === 'mole' ? 'trap' : 'mark' };
+      } else {
+        c.ping = { x: actor.x, z: actor.z, kind: actor.team === 'mole' ? 'danger' : 'mark' };
+      }
+    }
+
     return c;
   }
 
@@ -277,6 +338,7 @@ export class InputSystem {
   endFrame() {
     this.edges.clear();
     this.queuedAbilities.length = 0;
+    this.queuedPing = null;
     this.primaryEdge = false;
     this.escapePressed = false;
   }

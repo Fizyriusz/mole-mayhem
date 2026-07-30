@@ -24,6 +24,7 @@ export class UI {
       castBar: $('#hud-cast .cast-bar i'), castLabel: $('#hud-cast .cast-label'),
       hp: $('#bar-hp'), st: $('#bar-st'), carry: $('#carry'), carryCount: $('#carry-count'),
       abilities: $('#abilities'), hint: $('#hud-hint'), stick: $('#touch-left'),
+      pingEdges: $('#ping-edges'),
       silver: $('#w-silver'), gold: $('#w-gold'),
       perkList: $('#perk-list'), shopList: $('#shop-list'), playNote: $('#play-note'),
       customSetup: $('#custom-setup'),
@@ -43,6 +44,7 @@ export class UI {
 
     this.hintTimer = 0;
     this.bannerTimer = 0;
+    this._pingEdgeEls = [];
     this._bindMenu();
     this._bindMultiplayer();
   }
@@ -371,6 +373,20 @@ export class UI {
       input.bindAbilityButton(btn, ab.cmd, !!ab.hold);
       this.abilityEls.push({ el: btn, cd: ab.cd, cdEl: btn.querySelector('.ab-cd') });
     }
+
+    // Ping — osobny przycisk, bo nie jest to zwykla flaga cmd (niesie x/z/kind).
+    // Stuk = "tu/uwaga", przeciagniecie = ping na cel pod palcem (patrz InputSystem.bindPingButton).
+    const pingBtn = document.createElement('button');
+    pingBtn.className = 'ab ping ready';
+    pingBtn.innerHTML = `<span class="ab-icon">📍</span><span class="ab-key">C/X</span><span class="ab-cd"></span>`;
+    pingBtn.title = 'Ping — stuk: tu/uwaga, przeciągnij: wskaż cel';
+    this.el.abilities.appendChild(pingBtn);
+    input.bindPingButton(pingBtn);
+    this.abilityEls.push({ el: pingBtn, cd: 'ping', cdEl: pingBtn.querySelector('.ab-cd') });
+
+    this._pingEdgeEls = [];
+    if (this.el.pingEdges) this.el.pingEdges.innerHTML = '';
+
     input.setStickElement(this.el.stick);
   }
 
@@ -409,6 +425,33 @@ export class UI {
     }
 
     this._renderRoster(g);
+    this._updatePingEdges(g);
+  }
+
+  /**
+   * Wskazniki pingow poza kadrem. `g.pingScreens` to juz gotowe px/kat —
+   * ui.js celowo nie liczy tu geometrii 3D (patrz Game._updatePingScreens).
+   */
+  _updatePingEdges(g) {
+    if (!this.el.pingEdges) return;
+    const offscreen = g.pingScreens.filter(p => !p.onscreen);
+    while (this._pingEdgeEls.length < offscreen.length) {
+      const d = document.createElement('div');
+      d.className = 'ping-edge';
+      d.innerHTML = '<i class="pe-arrow"></i>';
+      this.el.pingEdges.appendChild(d);
+      this._pingEdgeEls.push(d);
+    }
+    this._pingEdgeEls.forEach((el, i) => {
+      const p = offscreen[i];
+      if (!p) { el.classList.add('hidden'); return; }
+      el.classList.remove('hidden');
+      el.classList.remove('kind-mark', 'kind-trap', 'kind-danger');
+      el.classList.add(`kind-${p.kind}`);
+      el.style.left = `${p.left}px`;
+      el.style.top = `${p.top}px`;
+      el.querySelector('.pe-arrow').style.transform = `rotate(${p.angle}deg)`;
+    });
   }
 
   _renderRoster(g) {
