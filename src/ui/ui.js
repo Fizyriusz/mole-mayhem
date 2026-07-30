@@ -9,6 +9,7 @@ import * as Settings from '../meta/settings.js';
 
 const $ = sel => document.querySelector(sel);
 const $$ = sel => Array.from(document.querySelectorAll(sel));
+const SETTINGS_STEP = 0.25;   // 5 poziomow: 0/25/50/75/100% — dla glosnosci i wstrzasow kamery
 
 export class UI {
   constructor({ onPlay, onQuitToMenu, audio }) {
@@ -24,11 +25,20 @@ export class UI {
       castBar: $('#hud-cast .cast-bar i'), castLabel: $('#hud-cast .cast-label'),
       hp: $('#bar-hp'), st: $('#bar-st'), carry: $('#carry'), carryCount: $('#carry-count'),
       abilities: $('#abilities'), hint: $('#hud-hint'), stick: $('#touch-left'),
-      pingEdges: $('#ping-edges'),
+      pingEdges: $('#ping-edges'), hudMenuBtn: $('#hud-menu-btn'),
+      matchMenu: $('#match-menu'), mmTitle: $('#mm-title'), mmLive: $('#mm-live'),
+      mmMain: $('#mm-main'), mmResume: $('#mm-resume'), mmRestart: $('#mm-restart'),
+      mmSettingsOpen: $('#mm-settings-open'), mmLeave: $('#mm-leave'), mmQuit: $('#mm-quit'),
+      mmSettings: $('#mm-settings'), mmSettingsBack: $('#mm-settings-back'),
+      mmVolVal: $('#mm-vol-val'), mmVolMinus: $('#mm-vol-minus'), mmVolPlus: $('#mm-vol-plus'),
+      mmShakeVal: $('#mm-shake-val'), mmShakeMinus: $('#mm-shake-minus'), mmShakePlus: $('#mm-shake-plus'),
+      mmConfirm: $('#mm-confirm'), mmConfirmText: $('#mm-confirm-text'),
+      mmConfirmYes: $('#mm-confirm-yes'), mmConfirmNo: $('#mm-confirm-no'),
       silver: $('#w-silver'), gold: $('#w-gold'),
       perkList: $('#perk-list'), shopList: $('#shop-list'), playNote: $('#play-note'),
       customSetup: $('#custom-setup'),
       shakeVal: $('#shake-val'), shakeMinus: $('#shake-minus'), shakePlus: $('#shake-plus'),
+      volVal: $('#vol-val'), volMinus: $('#vol-minus'), volPlus: $('#vol-plus'),
       endTitle: $('#end-title'), endSub: $('#end-sub'), endStats: $('#end-stats'),
       endSilver: $('#end-silver'), endGold: $('#end-gold'),
       mpConnect: $('#mp-connect'), mpLobby: $('#mp-lobby'),
@@ -47,6 +57,7 @@ export class UI {
     this._pingEdgeEls = [];
     this._bindMenu();
     this._bindMultiplayer();
+    this._bindMatchMenu();
   }
 
   /* ------------------------------------------------------------ MENU */
@@ -83,17 +94,24 @@ export class UI {
     $('#btn-again').addEventListener('click', () => this._startOrRematch());
     $('#btn-menu').addEventListener('click', () => this.onQuitToMenu());
 
-    const shakeStep = 0.25;   // 5 poziomow: 0/25/50/75/100% — 0% jest jednoczesnie pelnym wylaczeniem
-    this.el.shakeMinus.addEventListener('click', () => {
-      Settings.setShakeIntensity(Settings.getSettings().shakeIntensity - shakeStep);
-      this._renderSettings();
-      this.audio?.play('ui');
-    });
-    this.el.shakePlus.addEventListener('click', () => {
-      Settings.setShakeIntensity(Settings.getSettings().shakeIntensity + shakeStep);
-      this._renderSettings();
-      this.audio?.play('ui');
-    });
+    this.el.shakeMinus.addEventListener('click', () => this._adjustShake(-SETTINGS_STEP));
+    this.el.shakePlus.addEventListener('click', () => this._adjustShake(SETTINGS_STEP));
+    this.el.volMinus.addEventListener('click', () => this._adjustVolume(-SETTINGS_STEP));
+    this.el.volPlus.addEventListener('click', () => this._adjustVolume(SETTINGS_STEP));
+  }
+
+  _adjustShake(delta) {
+    Settings.setShakeIntensity(Settings.getSettings().shakeIntensity + delta);
+    this._renderSettings();
+    this.audio?.play('ui');
+  }
+
+  _adjustVolume(delta) {
+    const v = Math.max(0, Math.min(1, Settings.getSettings().volume + delta));
+    Settings.setVolume(v);
+    this.audio?.setVolume(v);
+    this._renderSettings();
+    this.audio?.play('ui');
   }
 
   /**
@@ -284,11 +302,27 @@ export class UI {
   }
 
   /** Suwak intensywnosci wstrzasow kamery — 0% jest jednoczesnie pelnym wylaczeniem. */
+  /** Wolane z main-menu I z panelu ustawien w menu-w-trakcie-meczu — trzyma oba w zgodzie. */
   _renderSettings() {
-    const val = Settings.getSettings().shakeIntensity;
-    this.el.shakeVal.textContent = Math.round(val * 100) + '%';
-    this.el.shakeMinus.disabled = val <= 0;
-    this.el.shakePlus.disabled = val >= 1;
+    const s = Settings.getSettings();
+    const pct = v => Math.round(v * 100) + '%';
+
+    this.el.shakeVal.textContent = pct(s.shakeIntensity);
+    this.el.shakeMinus.disabled = s.shakeIntensity <= 0;
+    this.el.shakePlus.disabled = s.shakeIntensity >= 1;
+
+    this.el.volVal.textContent = pct(s.volume);
+    this.el.volMinus.disabled = s.volume <= 0;
+    this.el.volPlus.disabled = s.volume >= 1;
+
+    if (this.el.mmShakeVal) {
+      this.el.mmShakeVal.textContent = pct(s.shakeIntensity);
+      this.el.mmShakeMinus.disabled = s.shakeIntensity <= 0;
+      this.el.mmShakePlus.disabled = s.shakeIntensity >= 1;
+      this.el.mmVolVal.textContent = pct(s.volume);
+      this.el.mmVolMinus.disabled = s.volume <= 0;
+      this.el.mmVolPlus.disabled = s.volume >= 1;
+    }
   }
 
   _renderPerks() {
@@ -452,6 +486,83 @@ export class UI {
       el.style.top = `${p.top}px`;
       el.querySelector('.pe-arrow').style.transform = `rotate(${p.angle}deg)`;
     });
+  }
+
+  /* ------------------------------------------------------- MENU W TRAKCIE MECZU */
+
+  _bindMatchMenu() {
+    this.el.hudMenuBtn.addEventListener('click', () => this.game?.openMatchMenu());
+    this.el.mmResume.addEventListener('click', () => this.game?.resumeMatch());
+    this.el.mmRestart.addEventListener('click', () => this.game?.restartMatch());
+    this.el.mmSettingsOpen.addEventListener('click', () => this._showMatchSettings());
+    this.el.mmSettingsBack.addEventListener('click', () => this._hideMatchSettings());
+
+    this.el.mmVolMinus.addEventListener('click', () => this._adjustVolume(-SETTINGS_STEP));
+    this.el.mmVolPlus.addEventListener('click', () => this._adjustVolume(SETTINGS_STEP));
+    this.el.mmShakeMinus.addEventListener('click', () => this._adjustShake(-SETTINGS_STEP));
+    this.el.mmShakePlus.addEventListener('click', () => this._adjustShake(SETTINGS_STEP));
+
+    // Solo "wyjscie do menu" nie potrzebuje potwierdzenia (nikt inny nie ucierpi).
+    // MP "opusc mecz" zawsze pyta — hosta ostrzegamy wprost, ze konczy mecz wszystkim.
+    this.el.mmQuit.addEventListener('click', () => this.game?.quitToMenu());
+    this.el.mmLeave.addEventListener('click', () => {
+      const isHost = this.game?.netRole === 'host';
+      this._confirmMatchAction(
+        isHost
+          ? 'Jesteś hostem — Twoje wyjście od razu KOŃCZY mecz wszystkim graczom. Kontynuować?'
+          : 'Opuścisz mecz — Twoją postać przejmie bot. Kontynuować?',
+        'Opuść mecz',
+        () => this.game?.quitToMenu()
+      );
+    });
+
+    this.el.mmConfirmNo.addEventListener('click', () => this._hideConfirm());
+  }
+
+  /** Wolane z Game.openMatchMenu() — zawartosc zalezy od trybu (solo/gosc/host). */
+  showMatchMenu(game) {
+    const isSolo = game.netRole === null;
+
+    this.el.mmTitle.textContent = isSolo ? 'Pauza' : 'Menu';
+    this.el.mmLive.classList.toggle('hidden', isSolo);
+    this.el.mmRestart.classList.toggle('hidden', !isSolo);
+    this.el.mmQuit.classList.toggle('hidden', !isSolo);
+    this.el.mmLeave.classList.toggle('hidden', isSolo);
+
+    this._hideMatchSettings();
+    this._hideConfirm();
+    this._renderSettings();
+    this.el.matchMenu.classList.remove('hidden');
+  }
+
+  hideMatchMenu() {
+    this.el.matchMenu.classList.add('hidden');
+  }
+
+  _showMatchSettings() {
+    this.el.mmMain.classList.add('hidden');
+    this.el.mmConfirm.classList.add('hidden');
+    this.el.mmSettings.classList.remove('hidden');
+    this._renderSettings();
+  }
+
+  _hideMatchSettings() {
+    this.el.mmSettings.classList.add('hidden');
+    this.el.mmMain.classList.remove('hidden');
+  }
+
+  _confirmMatchAction(text, actionLabel, onConfirm) {
+    this.el.mmMain.classList.add('hidden');
+    this.el.mmSettings.classList.add('hidden');
+    this.el.mmConfirm.classList.remove('hidden');
+    this.el.mmConfirmText.textContent = text;
+    this.el.mmConfirmYes.textContent = actionLabel;
+    this.el.mmConfirmYes.onclick = () => { this._hideConfirm(); onConfirm(); };
+  }
+
+  _hideConfirm() {
+    this.el.mmConfirm.classList.add('hidden');
+    this.el.mmMain.classList.remove('hidden');
   }
 
   _renderRoster(g) {

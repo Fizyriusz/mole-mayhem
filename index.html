@@ -14,6 +14,7 @@
 
     <!-- ======================= HUD (w trakcie meczu) ======================= -->
     <div id="hud" class="layer hidden">
+      <button id="hud-menu-btn" class="hud-menu-btn" title="Menu (Esc)">☰</button>
       <div class="hud-top">
         <div class="team-score team-mole">
           <span class="ts-icon">🥕</span>
@@ -185,6 +186,12 @@
         <h2>Ustawienia</h2>
         <div class="custom-setup">
           <div class="cs-row">
+            <span class="cs-label">Głośność</span>
+            <button class="cs-btn" id="vol-minus">−</button>
+            <b class="cs-val" id="vol-val">100%</b>
+            <button class="cs-btn" id="vol-plus">+</button>
+          </div>
+          <div class="cs-row">
             <span class="cs-label">Wstrząsy kamery<i>0% = całkowicie wyłączone (dostępność)</i></span>
             <button class="cs-btn" id="shake-minus">−</button>
             <b class="cs-val" id="shake-val">100%</b>
@@ -209,6 +216,48 @@
         <div class="end-actions">
           <button id="btn-again" class="cta">JESZCZE RAZ</button>
           <button id="btn-menu" class="cta ghost">MENU</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================= MENU W TRAKCIE MECZU (Escape / przycisk HUD) ======================= -->
+    <div id="match-menu" class="layer hidden">
+      <div class="mm-card">
+        <h2 id="mm-title">Menu</h2>
+        <p id="mm-live" class="mm-live hidden">⚠️ Mecz trwa dalej — Twoja postać nie jest bezpieczna.</p>
+
+        <div id="mm-main" class="mm-actions">
+          <button id="mm-resume" class="cta">Wznów</button>
+          <button id="mm-restart" class="cta ghost">Restart meczu</button>
+          <button id="mm-settings-open" class="cta ghost">Ustawienia</button>
+          <button id="mm-leave" class="cta ghost mm-danger">Opuść mecz</button>
+          <button id="mm-quit" class="cta ghost">Wyjście do menu głównego</button>
+        </div>
+
+        <div id="mm-settings" class="mm-settings hidden">
+          <div class="custom-setup">
+            <div class="cs-row">
+              <span class="cs-label">Głośność</span>
+              <button class="cs-btn" id="mm-vol-minus">−</button>
+              <b class="cs-val" id="mm-vol-val">100%</b>
+              <button class="cs-btn" id="mm-vol-plus">+</button>
+            </div>
+            <div class="cs-row">
+              <span class="cs-label">Wstrząsy kamery<i>0% = całkowicie wyłączone</i></span>
+              <button class="cs-btn" id="mm-shake-minus">−</button>
+              <b class="cs-val" id="mm-shake-val">100%</b>
+              <button class="cs-btn" id="mm-shake-plus">+</button>
+            </div>
+          </div>
+          <button id="mm-settings-back" class="cta ghost">Wstecz</button>
+        </div>
+
+        <div id="mm-confirm" class="mm-confirm hidden">
+          <p id="mm-confirm-text"></p>
+          <div class="mm-confirm-actions">
+            <button id="mm-confirm-yes" class="cta mm-danger"></button>
+            <button id="mm-confirm-no" class="cta ghost">Anuluj</button>
+          </div>
         </div>
       </div>
     </div>

@@ -25,6 +25,7 @@ import { EMPTY_COMMAND } from '../entities/actor.js';
 import { disposeObject } from './dispose.js';
 import { serializeSnapshot, applySnapshot } from './netsync.js';
 import * as Eco from '../meta/economy.js';
+import * as Settings from '../meta/settings.js';
 
 const SNAPSHOT_HZ = 20;
 const REMOTE_CMD_TTL = 0.5;   // po tylu sekundach cisz od gracza jego postac staje
@@ -53,7 +54,8 @@ export class Game {
     this.ui = ui;
     this.time = 0;
     this.running = false;
-    this.paused = false;
+    this.paused = false;       // solo: prawdziwa pauza symulacji, gdy otwarte menu
+    this.menuOpen = false;     // wszystkie tryby: nakladka menu w trakcie meczu (Zadanie 4)
     this.state = 'menu';       // menu | countdown | playing | over
 
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
@@ -90,6 +92,7 @@ export class Game {
     this.camera = this.rig.camera;
 
     this.audio = new AudioEngine();
+    this.audio.volume = Settings.getSettings().volume;
     this.input = new InputSystem(canvas);
     this.postfx = new PostFX(this.renderer, this.scene, this.camera);
 
@@ -568,12 +571,48 @@ export class Game {
   quitToMenu() {
     this.running = false;
     this.state = 'menu';
+    this.menuOpen = false;
+    this.paused = false;
     this.netRole = null;
     this.net?.disconnect();
     this.input.setEnabled(false);
     this.cleanup();
     this.setLocalUnderground(false);
     this.ui.showMenu();
+  }
+
+  /* ---------------------------------------------------- MENU W TRAKCIE MECZU */
+
+  /**
+   * Otwiera nakladke menu (Zadanie 4). W solo (netRole===null) realnie
+   * zatrzymuje symulacje — bezpieczne, bo nikt inny na niej nie polega.
+   * W multiplayerze NIGDY nie ustawia `paused`: host musialby dalej wysylac
+   * snapshoty (inaczej zamrozilby mecz wszystkim gosciom), a gosc i tak nie
+   * ma wladzy nad symulacja hosta — otwarcie menu tylko blokuje jego wejscie
+   * i pokazuje ostrzezenie "mecz trwa dalej".
+   */
+  openMatchMenu() {
+    if (this.menuOpen || this.state === 'menu' || this.state === 'over') return;
+    this.menuOpen = true;
+    this.input.setEnabled(false);
+    if (this.netRole === null) this.paused = true;
+    this.ui.showMatchMenu(this);
+  }
+
+  resumeMatch() {
+    if (!this.menuOpen) return;
+    this.menuOpen = false;
+    this.paused = false;
+    this.input.setEnabled(true);
+    this.ui.hideMatchMenu();
+  }
+
+  /** Solo: te same ustawienia (format/frakcja z zapisu), swiezy stan meczu. */
+  restartMatch() {
+    this.menuOpen = false;
+    this.paused = false;
+    this.ui.hideMatchMenu();
+    this.startMatch();
   }
 
   /* ------------------------------------------------- zdarzenia rozgrywki */
@@ -698,21 +737,13 @@ export class Game {
       return;
     }
 
-    // Pauza tylko w grze solo — hosta pauza zatrzymalaby wysylanie snapshotow
-    // i zamrozila mecz wszystkim podlaczonym gosciom (gosc i tak nie odpala
-    // tej metody, patrz updateGuest()).
-    if (this.netRole === null) {
-      if (this.input.escapePressed && this.state !== 'over') {
-        this.paused = !this.paused;
-        this.input.setEnabled(!this.paused);
-        if (this.paused) this.ui.banner('PAUZA — ESC wznawia, BACKSPACE = menu', 9999);
-        else this.ui.banner('', 0.01);
-      }
-      if (this.paused) {
-        if (this.backspaceQuit) { this.backspaceQuit = false; this.quitToMenu(); }
-        return;
-      }
+    // Menu w trakcie meczu (Zadanie 4) — dziala identycznie w solo i hoscie.
+    // openMatchMenu()/resumeMatch() same wiedza, czy wolno ustawic `paused`
+    // (tylko solo — patrz komentarz przy openMatchMenu).
+    if (this.state !== 'over' && this.input.escapePressed) {
+      if (this.menuOpen) this.resumeMatch(); else this.openMatchMenu();
     }
+    if (this.paused) return;
 
     this.time += dt;
 
@@ -825,7 +856,16 @@ export class Game {
    */
   updateGuest(dt) {
     this.ui.update(dt);
-    if (this.state === 'menu' || this.paused) return;
+    if (this.state === 'menu') return;
+
+    // Gosc: menu NIGDY nie pauzuje (patrz openMatchMenu) — `this.paused`
+    // dla goscia zostaje zawsze false, wiec ponizszy return praktycznie
+    // nigdy nie wystrzeli; zostawiony dla symetrii z update() / bezpieczenstwa.
+    if (this.state !== 'over' && this.input.escapePressed) {
+      if (this.menuOpen) this.resumeMatch(); else this.openMatchMenu();
+    }
+    if (this.paused) return;
+
     this.time += dt;
 
     for (const marker of this.revealMarkers) {

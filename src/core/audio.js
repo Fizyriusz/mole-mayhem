@@ -7,6 +7,7 @@ export class AudioEngine {
   constructor() {
     this.ctx = null;
     this.muted = false;
+    this.volume = 1;     // 0..1 — mnoznik ustawiony przez gracza, patrz src/meta/settings.js
     this.master = null;
     this.noiseBuffer = null;
   }
@@ -18,7 +19,7 @@ export class AudioEngine {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.35;
+    this.master.gain.value = this.muted ? 0 : 0.35 * this.volume;
     this.master.connect(this.ctx.destination);
 
     const len = this.ctx.sampleRate * 0.6;
@@ -29,7 +30,12 @@ export class AudioEngine {
 
   setMuted(m) {
     this.muted = m;
-    if (this.master) this.master.gain.value = m ? 0 : 0.35;
+    if (this.master) this.master.gain.value = m ? 0 : 0.35 * this.volume;
+  }
+
+  setVolume(v) {
+    this.volume = v;
+    if (this.master) this.master.gain.value = this.muted ? 0 : 0.35 * this.volume;
   }
 
   _env(node, gain, attack, decay, when = 0) {

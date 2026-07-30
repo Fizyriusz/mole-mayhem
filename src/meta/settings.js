@@ -8,7 +8,8 @@
 const KEY = 'molemayhem.settings.v1';
 
 const DEFAULT_SETTINGS = {
-  shakeIntensity: 1   // 0..1 — 0 = calkowicie wylaczone trzesienie kamery (dostepnosc)
+  shakeIntensity: 1,   // 0..1 — 0 = calkowicie wylaczone trzesienie kamery (dostepnosc)
+  volume: 1            // 0..1 — mnoznik glosnosci calej gry (patrz AudioEngine.setVolume)
 };
 
 let settings = load();
@@ -30,5 +31,10 @@ export function getSettings() { return settings; }
 
 export function setShakeIntensity(v) {
   settings.shakeIntensity = Math.max(0, Math.min(1, v));
+  persist();
+}
+
+export function setVolume(v) {
+  settings.volume = Math.max(0, Math.min(1, v));
   persist();
 }

@@ -28,13 +28,6 @@ const unlock = () => {
 addEventListener('pointerdown', unlock);
 addEventListener('keydown', unlock);
 
-addEventListener('keydown', e => {
-  if (e.code === 'Backspace' && game.paused) {
-    e.preventDefault();
-    game.backspaceQuit = true;
-  }
-});
-
 let last = performance.now();
 let acc = 0, frames = 0;
 
